@@ -335,6 +335,38 @@ spring:
 - 🔍 Kafka can detect this as a new session, and handle it properly
 
 
+## ⚠️ Step 1: Normal idempotent producer (without transactions)
+
+- 📨 Producer sends messages with PID 123
+- 🔢 Sequence numbers: 0, 1, 2 …
+- 💥 Crash happens before all messages are ACKed
+- 🔄 Producer restarts → new PID 124 → starts sequence 0 again
+- ❌ Problem: idempotence alone cannot protect across PID change
+
+---
+
+## ✅ Step 2: Idempotent producer with transactions
+
+- 🆕 Producer starts a transaction (transaction ID assigned)
+- 📨 Producer sends messages (PID 123) as part of this transaction
+- 🗄 Messages are stored on the broker but not yet visible to consumers
+- 💥 Crash happens before the transaction is committed
+- 🛑 Broker marks this transaction as ABORTED in `__transaction_state`
+- 🚫 All messages in this transaction are ignored for consumers (`read_committed`)
+- 🔄 Producer restarts → new PID 124 → can start a new transaction
+- 🛡 Broker ensures no old uncommitted messages are delivered, so duplicates are avoided
+
+
+---
+
+When using idempotent producer + transactions, Kafka ensures that:
+
+- 🔒 Messages sent as part of a transaction are not considered committed/visible to consumers until the transaction is committed.
+- 📝 Even if the broker stores the message temporarily, it is not finalized in the partition until the transaction commit is replicated and recorded.
+- This is what guarantees exactly-once semantics. 🏆
+
+
+
 ## 📊 Step Table
 
 | 🪜 Step                          | 👷 Who Does It?                 | ❗ Why it matters                                 |
